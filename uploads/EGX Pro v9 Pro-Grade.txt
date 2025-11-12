@@ -1,0 +1,1267 @@
+//@version=6
+indicator(title="EGX Pro v9 Pro-Grade (Indicator)", shorttitle="EGXv9-Pro", overlay=true, max_labels_count=60, max_lines_count=60, max_boxes_count=20)
+
+// ===================== 1) اللغة =====================
+var string G_LANG = "اللغة"
+msg_lang = input.string("AR", "اللغة (Language)", options=["AR","EN"], group=G_LANG)
+txt(ar, en) => msg_lang == "AR" ? ar : en
+
+// ===================== 2) الواجهة والتحكم =====================
+var string G_UI = "الواجهة والتحكم"
+ui_theme      = input.string("تباين عالٍ", txt("السِمة","Theme"), options=["تباين عالٍ","داكن","فاتح"], group=G_UI)
+ui_colorblind = input.bool(false, txt("لوحة ألوان لضعف النظر","Color-blind safe"), group=G_UI)
+use_emojis    = input.bool(true, txt("استخدام الإيموجي","Use emojis"), group=G_UI)
+
+// مواقع اللوحات
+to_pos(s) => s == "أعلى اليمين" ? position.top_right : s == "أعلى اليسار" ? position.top_left : s == "أسفل اليمين" ? position.bottom_right : s == "أسفل اليسار" ? position.bottom_left : s == "أعلى الوسط" ? position.top_center : s == "أسفل الوسط" ? position.bottom_center : position.top_right
+
+pro_dash_pos_str = input.string("أعلى اليمين", "موضع لوحة المحترف", options=["أعلى اليمين","أعلى اليسار","أسفل اليمين","أسفل اليسار"], group=G_UI)
+narr_pos_str     = input.string("أعلى الوسط",  "موضع لوحة السرد (Narrative)", options=["أعلى الوسط","أسفل الوسط","أعلى اليمين","أعلى اليسار","أسفل اليمين","أسفل اليسار"], group=G_UI)
+rc_pos_str       = input.string("أسفل الوسط",  "موضع لوحة التقارير (Report Center)", options=["أعلى الوسط","أسفل الوسط","أعلى اليمين","أعلى اليسار","أسفل اليمين","أسفل اليسار"], group=G_UI)
+
+pro_pos  = to_pos(pro_dash_pos_str)
+narr_pos = to_pos(narr_pos_str)
+rc_pos   = to_pos(rc_pos_str)
+
+// أحجام الخط لكل لوحة (لا يوجد حجم جدول – تم إلغاؤه)
+pro_font_size  = input.string("صغير", "خط لوحة المحترف",   options=["صغير جداً","صغير","وسط","كبير"], group=G_UI)
+narr_font_size = input.string("صغير", "خط لوحة السرد",     options=["صغير جداً","صغير","وسط","كبير"], group=G_UI)
+rc_font_size   = input.string("صغير", "خط لوحة التقارير",  options=["صغير جداً","صغير","وسط","كبير"], group=G_UI)
+
+// تحويلات حجم الخط
+to_font(sz) => sz == "صغير جداً" ? size.tiny : sz == "صغير" ? size.small : sz == "وسط" ? size.normal : size.large
+to_font_big(sz) => sz == "صغير جداً" ? size.small : sz == "صغير" ? size.normal : sz == "وسط" ? size.large : size.large
+
+// مفاتيح إعادة إنشاء الجداول عند تغيير الخط/الموضع
+var string pro_key  = ""
+var string narr_key = ""
+var string rc_key   = ""
+string pro_key_new  = pro_font_size  + "|" + pro_dash_pos_str
+string narr_key_new = narr_font_size + "|" + narr_pos_str
+string rc_key_new   = rc_font_size   + "|" + rc_pos_str
+
+// إعلانات مبكرة للجداول
+var table pro_table  = na
+var table narr_table = na
+var table rc_table   = na
+
+// ===================== 3) الثيم والألوان =====================
+var color PANEL_BG     = na
+var color PANEL_BORDER = na
+var color TEXT_MAIN    = na
+var color TEXT_SUB     = na
+var color GOOD         = na
+var color BAD          = na
+var color WARN         = na
+var color INFO         = na
+var color NEUTRAL      = na
+var color ACCENT       = na
+
+if barstate.isfirst
+    if ui_theme == "تباين عالٍ"
+        PANEL_BG     := color.rgb(28,35,49)
+        PANEL_BORDER := color.rgb(99,102,241)
+        TEXT_MAIN    := color.white
+        TEXT_SUB     := color.rgb(226,232,240)
+        GOOD         := ui_colorblind ? color.rgb(59,130,246) : color.rgb(16,185,129)
+        BAD          := color.rgb(239,68,68)
+        WARN         := color.rgb(245,158,11)
+        INFO         := color.rgb(59,130,246)
+        NEUTRAL      := color.rgb(100,116,139)
+        ACCENT       := color.rgb(139,92,246)
+    else if ui_theme == "داكن"
+        PANEL_BG     := color.rgb(17,24,39)
+        PANEL_BORDER := color.rgb(75,85,99)
+        TEXT_MAIN    := color.white
+        TEXT_SUB     := color.rgb(203,213,225)
+        GOOD         := ui_colorblind ? color.rgb(37,99,235) : color.rgb(34,197,94)
+        BAD          := color.rgb(248,113,113)
+        WARN         := color.rgb(245,158,11)
+        INFO         := color.rgb(59,130,246)
+        NEUTRAL      := color.rgb(148,163,184)
+        ACCENT       := color.rgb(99,102,241)
+    else
+        PANEL_BG     := color.rgb(245,247,250)
+        PANEL_BORDER := color.rgb(203,213,225)
+        TEXT_MAIN    := color.rgb(17,24,39)
+        TEXT_SUB     := color.rgb(51,65,85)
+        GOOD         := ui_colorblind ? color.rgb(37,99,235) : color.rgb(16,185,129)
+        BAD          := color.rgb(220,38,38)
+        WARN         := color.rgb(217,119,6)
+        INFO         := color.rgb(37,99,235)
+        NEUTRAL      := color.rgb(71,85,105)
+        ACCENT       := color.rgb(79,70,229)
+
+// ===================== 4) الوضع الذكي =====================
+var string G_MAIN = "الوضع الذكي"
+smart_mode = input.string("قياسي", "الوضع الذكي", options=["مبتدئ","قياسي","محترف","الشريعة"], group=G_MAIN)
+enable_smart_mode_effect = input.bool(true, "تفعيل تأثير الوضع الذكي", group=G_MAIN)
+is_beginner = smart_mode == "مبتدئ"
+is_pro      = smart_mode == "محترف"
+is_sharia   = smart_mode == "الشريعة"
+
+// ===================== 5) طريقة الحساب =====================
+var string G_CALC = "طريقة الحساب"
+calc_source = input.string("عادي", "مصدر الحساب", options=["عادي","من الشارت"], group=G_CALC)
+
+float o_reg = request.security(syminfo.tickerid, timeframe.period, open,  lookahead=barmerge.lookahead_off)
+float h_reg = request.security(syminfo.tickerid, timeframe.period, high,  lookahead=barmerge.lookahead_off)
+float l_reg = request.security(syminfo.tickerid, timeframe.period, low,   lookahead=barmerge.lookahead_off)
+float c_reg = request.security(syminfo.tickerid, timeframe.period, close, lookahead=barmerge.lookahead_off)
+
+float o = calc_source == "عادي" ? o_reg : open
+float h = calc_source == "عادي" ? h_reg : high
+float l = calc_source == "عادي" ? l_reg : low
+float c = calc_source == "عادي" ? c_reg : close
+float hlc3_b = (h + l + c) / 3.0
+
+// ===================== 6) وضع الشريعة =====================
+var string G_SHARIA = "وضع الشريعة"
+sharia_enabled       = is_sharia or input.bool(false, "تفعيل وضع الشريعة", group=G_SHARIA)
+sharia_block_signals = input.bool(true, "حجب الشراء إن غير متوافق", group=G_SHARIA)
+sharia_profile       = input.string("يدوي", "ملف نشط", options=["يدوي","قائمة_صور","قائمة_شاملة"], group=G_SHARIA)
+sharia_manual_csv    = input.string("", "قائمة يدوية (رموز مفصولة بفواصل)", group=G_SHARIA)
+sharia_images_csv    = input.string("EGX:ABUK,EGX:ACAMD,EGX:AMOC,EGX:AMPI,EGX:APPC,EGX:APSW,EGX:ARCC,EGX:ARPI,EGX:ARVA,EGX:ATLC,EGX:AXPH,EGX:BIGP,EGX:CAED,EGX:CLHO,EGX:EDFM,EGX:EFID,EGX:EGAL,EGX:EGAS,EGX:EKHO,EGX:EKHOA,EGX:ELNA,EGX:EMDE,EGX:FNAR,EGX:GETO,EGX:GMCI,EGX:GTHE,EGX:ICFC,EGX:ICMI,EGX:IDHC,EGX:IFAP,EGX:INEG,EGX:INFI,EGX:ISMA,EGX:ISMQ,EGX:JUFO,EGX:KABO,EGX:MBSC,EGX:MCQE,EGX:MCRO,EGX:MICH,EGX:MILS,EGX:MMAT,EGX:MOED,EGX:MOSC,EGX:MPCO,EGX:MTIE,EGX:NCCW,EGX:NDRL,EGX:NEDA,EGX:NINH,EGX:RREI,EGX:PACH,EGX:POUL,EGX:PRCL,EGX:PTCC,EGX:RUBX,EGX:SCEM,EGX:SCFM,EGX:SIPC,EGX:SKPC,EGX:SMFR,EGX:SPMD,EGX:SUGR,EGX:TANM,EGX:UEFM,EGX:UPMS,EGX:VERT,EGX:WCDF,EGX:WKOL,EGX:ZEOT,EGX:ZMID", "قائمة من الصور", group=G_SHARIA)
+sharia_all_csv       = input.string("EGX:ABUK,EGX:ACAMD,EGX:ADIB,EGX:ALCN,EGX:AMER,EGX:AMOC,EGX:AMPI,EGX:APPC,EGX:APSW,EGX:ARCC,EGX:ARPI,EGX:ARVA,EGX:ATLC,EGX:AUTO,EGX:AXPH,EGX:BIGP,EGX:CAED,EGX:CCAP,EGX:CIEB,EGX:CIRA,EGX:CLHO,EGX:COMI,EGX:DOMT,EGX:DSCW,EGX:EDFM,EGX:EFID,EGX:EFIH,EGX:EGAL,EGX:EGAS,EGX:EKHO,EGX:EKHOA,EGX:ELNA,EGX:EMDE,EGX:EMFD,EGX:ESRS,EGX:ETEL,EGX:FNAR,EGX:FWRY,EGX:GTHE,EGX:GMCI,EGX:HDBK,EGX:HELI,EGX:HRHO,EGX:ICFC,EGX:ICMI,EGX:IDHC,EGX:IFAP,EGX:INEG,EGX:INFI,EGX:ISMA,EGX:ISMQ,EGX:JUFO,EGX:KABO,EGX:MBSC,EGX:MCQE,EGX:MCRO,EGX:MICH,EGX:MILS,EGX:MMAT,EGX:MFPC,EGX:MNHD,EGX:MOED,EGX:MOSC,EGX:MPCO,EGX:MTIE,EGX:NBKE,EGX:NCCW,EGX:NDRL,EGX:NEDA,EGX:NINH,EGX:OCDI,EGX:OLFI,EGX:ORAS,EGX:ORHD,EGX:ORWE,EGX:PACH,EGX:PHDC,EGX:POUL,EGX:PORT,EGX:PRCL,EGX:PRMH,EGX:PTCC,EGX:QNBA,EGX:RAYA,EGX:RREI,EGX:RMDA,EGX:RUBX,EGX:SCEM,EGX:SCFM,EGX:SIPC,EGX:SKPC,EGX:SMFR,EGX:SPMD,EGX:SUCE,EGX:SUGR,EGX:SWDY,EGX:TALM,EGX:TANM,EGX:TMGH,EGX:UEFM,EGX:UPMS,EGX:VERT,EGX:WCDF,EGX:WKOL,EGX:ZEOT,EGX:ZMID", "قائمة شاملة", group=G_SHARIA)
+
+normalize_sym(s) =>
+    string s1 = str.upper(str.replace(s, " ", ""))
+    string s2 = str.replace(s1, "\n", "")
+    str.replace(s2, "\t", "")
+
+var string[] sharia_list = array.new_string()
+if barstate.isfirst
+    array.clear(sharia_list)
+    string source = sharia_profile == "يدوي" ? sharia_manual_csv : sharia_profile == "قائمة_صور" ? sharia_images_csv : sharia_all_csv
+    if str.length(source) > 0
+        string[] parts = str.split(source, ",")
+        for i = 0 to array.size(parts) - 1
+            string sym = normalize_sym(array.get(parts, i))
+            if str.length(sym) > 0 and array.indexof(sharia_list, sym) == -1
+                array.push(sharia_list, sym)
+
+current_sym = normalize_sym(syminfo.tickerid)
+bool is_sharia_compliant = true
+if sharia_enabled and array.size(sharia_list) > 0
+    is_sharia_compliant := false
+    for i = 0 to array.size(sharia_list) - 1
+        if current_sym == array.get(sharia_list, i)
+            is_sharia_compliant := true
+            break
+
+filter_sharia_buy  = not sharia_enabled or not sharia_block_signals or is_sharia_compliant
+filter_sharia_sell = true
+
+// ===================== 7) المتوسطات وVWAP =====================
+var string G_MA = "الاتجاه والزخم - المتوسطات"
+use_ema      = input.bool(true, "تفعيل EMA", group=G_MA)
+ema_fast_len = input.int(20, "EMA سريع (20)", minval=5, maxval=50, group=G_MA)
+ema_med_len  = input.int(50, "EMA متوسط (50)", minval=20, maxval=100, group=G_MA)
+ema_slow_len = input.int(200,"EMA بطيء (200)", minval=100, maxval=400, group=G_MA)
+use_vwap     = input.bool(true, "تفعيل VWAP", group=G_MA)
+
+ema_fast = ta.ema(c, ema_fast_len)
+ema_med  = ta.ema(c, ema_med_len)
+ema_slow = ta.ema(c, ema_slow_len)
+vwap_val = ta.vwap(hlc3_b)
+
+ema_aligned_bull = ema_fast > ema_med and ema_med > ema_slow
+ema_aligned_bear = ema_fast < ema_med and ema_med < ema_slow
+golden_cross     = ta.crossover(ema_med, ema_slow)
+death_cross      = ta.crossunder(ema_med, ema_slow)
+price_above_ema  = c > ema_fast and c > ema_med and c > ema_slow
+price_below_ema  = c < ema_fast and c < ema_med and c < ema_slow
+above_vwap       = c > vwap_val
+below_vwap       = c < vwap_val
+
+plot(use_ema ? ema_fast : na, "EMA20", color.rgb(33,150,243), 2)
+plot(use_ema ? ema_med  : na, "EMA50", color.rgb(255,152,0),  2)
+plot(use_ema ? ema_slow : na, "EMA200",color.rgb(233,30,99),  3)
+plot(use_vwap ? vwap_val: na, "VWAP",  color.yellow, 2, plot.style_circles)
+
+// ===================== 8) RSI و ADX/DMI =====================
+var string G_RSI = "الاتجاه والزخم - RSI"
+use_rsi      = input.bool(true, "تفعيل RSI", group=G_RSI)
+rsi_len      = input.int(14, "الطول", minval=7, maxval=21, group=G_RSI)
+rsi_ob_level = input.int(70, "تشبع شرائي", minval=65, maxval=85, group=G_RSI)
+rsi_os_level = input.int(30, "تشبع بيعي",   minval=15, maxval=35, group=G_RSI)
+
+rsi_val        = ta.rsi(c, rsi_len)
+rsi_ob         = rsi_val > rsi_ob_level
+rsi_os         = rsi_val < rsi_os_level
+rsi_extreme_ob = rsi_val > 85
+rsi_extreme_os = rsi_val < 15
+rsi_bull_zone  = rsi_val > 50 and rsi_val < rsi_ob_level
+rsi_bear_zone  = rsi_val < 50 and rsi_val > rsi_os_level
+
+var string G_ADX = "الاتجاه والزخم - ADX/DMI"
+use_adx       = input.bool(true, "تفعيل ADX/DMI", group=G_ADX)
+adx_len       = input.int(14, "الطول", minval=7, maxval=28, group=G_ADX)
+adx_threshold = input.int(25, "حد القوة", minval=15, maxval=40, group=G_ADX)
+
+float prev_high  = nz(h[1], h)
+float prev_low   = nz(l[1], l)
+float prev_close = nz(c[1], c)
+float tr_raw     = math.max(h - l, math.max(math.abs(h - prev_close), math.abs(l - prev_close)))
+float up_move    = h - prev_high
+float down_move  = prev_low - l
+float dm_plus_raw  = (up_move > down_move and up_move > 0) ? up_move : 0.0
+float dm_minus_raw = (down_move > up_move and down_move > 0) ? down_move : 0.0
+float tr_smooth       = ta.rma(tr_raw, adx_len)
+float dm_plus_smooth  = ta.rma(dm_plus_raw, adx_len)
+float dm_minus_smooth = ta.rma(dm_minus_raw, adx_len)
+float di_plus  = 100.0 * dm_plus_smooth  / math.max(tr_smooth, 0.0001)
+float di_minus = 100.0 * dm_minus_smooth / math.max(tr_smooth, 0.0001)
+float di_diff  = math.abs(di_plus - di_minus)
+float di_sum   = di_plus + di_minus
+float dx       = 100.0 * di_diff / math.max(di_sum, 0.0001)
+float adx_val  = ta.rma(dx, adx_len)
+
+adx_weak        = adx_val < 20
+adx_moderate    = adx_val >= 20 and adx_val < adx_threshold
+adx_strong      = adx_val >= adx_threshold
+adx_very_strong = adx_val >= adx_threshold + 10
+
+trend_up        = adx_strong and di_plus > di_minus
+trend_down      = adx_strong and di_minus > di_plus
+trend_sideways  = adx_weak
+
+// ===================== 9) ATR =====================
+var string G_ATR = "ATR وإدارة المخاطر"
+atr_period = input.int(14, "ATR فترة", minval=7, maxval=28, group=G_ATR)
+atr_val = ta.atr(atr_period)
+
+// ===================== 10) السيولة والحجم + Presets =====================
+var string G_VOL = "السيولة والحجم"
+use_volume        = input.bool(true, "تفعيل مؤشرات الحجم", group=G_VOL)
+vol_ma_len        = input.int(20, "متوسط حجم بسيط", minval=10, maxval=50, group=G_VOL)
+val_min_enabled   = input.bool(true, "فلتر قيمة التداول (EGX)", group=G_VOL)
+min_traded_value  = input.float(3e6, "حد أدنى لقيمة التداول (جنيه) على 20 بار", step=1e5, group=G_VOL)
+max_bar_range_pct = input.float(6.0, "أقصى نطاق للشمعة % (تجنب دفعات المزاد)", step=0.5, group=G_VOL)
+
+var string G_PRE = "Presets السيولة"
+liq_preset = input.string("LargeCaps", "Preset السيولة", options=["LargeCaps","SmallCaps","Custom"], group=G_PRE)
+
+float preset_min = liq_preset == "LargeCaps" ? 6e6 : liq_preset == "SmallCaps" ? 2.5e6 : min_traded_value
+float effective_min_traded_value = val_min_enabled ? preset_min : 0.0
+
+vol_sma       = ta.sma(volume, vol_ma_len)
+vol_high      = volume > vol_sma * 1.5
+vol_very_high = volume > vol_sma * 2.5
+
+float candle_range = h - l
+float buy_pressure  = candle_range > 0 ? (c - l) / candle_range * volume : 0
+float sell_pressure = candle_range > 0 ? (h - c) / candle_range * volume : 0
+float net_pressure  = buy_pressure - sell_pressure
+
+vol_bullish      = vol_high and c > o and net_pressure > 0
+vol_bearish      = vol_high and c < o and net_pressure < 0
+
+val_sma20 = ta.sma(c * volume, 20)
+bar_range_pct = c > 0 ? ((h - l) / c) * 100.0 : 0.0
+liquid_ok = (not val_min_enabled) or (val_sma20 >= effective_min_traded_value and bar_range_pct <= max_bar_range_pct)
+
+// ===================== 11) جلسات EGX =====================
+var string G_SESS = "جلسات EGX"
+use_sessions        = input.bool(true, "تمييز الجلسات", group=G_SESS)
+avoid_open_for_all  = input.bool(true, "تجنّب أول 15 دقيقة للجميع", group=G_SESS)
+avoid_close_for_all = input.bool(true, "تجنّب آخر 15 دقيقة للجميع", group=G_SESS)
+
+in_opening  = not na(time(timeframe.period, "1000-1015:23456"))
+in_regular  = not na(time(timeframe.period, "1015-1415:23456"))
+in_closing  = not na(time(timeframe.period, "1415-1430:23456"))
+
+filter_session = use_sessions ? ((avoid_open_for_all ? not in_opening : true) and (avoid_close_for_all ? not in_closing : true) and (in_regular or in_opening or in_closing)) : true
+
+// ===================== 12) القوة النسبية RS =====================
+var string G_RS = "القوة النسبية والمؤشر القياسي"
+use_rs  = input.bool(true, "تفعيل القوة النسبية (RS)", group=G_RS)
+bm_sym  = input.string("EGX:EGX30", "رمز المؤشر القياسي (Benchmark)", group=G_RS)
+
+bm_close = use_rs ? request.security(bm_sym, timeframe.period, close, lookahead=barmerge.lookahead_off) : na
+rs_ratio = use_rs ? (bm_close > 0 ? c / bm_close : na) : na
+rs_ema_fast = use_rs ? ta.ema(rs_ratio, 20) : na
+rs_ema_slow = use_rs ? ta.ema(rs_ratio, 50) : na
+rs_trend_up   = use_rs and not na(rs_ema_fast) and not na(rs_ema_slow) and rs_ema_fast > rs_ema_slow
+rs_trend_down = use_rs and not na(rs_ema_fast) and not na(rs_ema_slow) and rs_ema_fast < rs_ema_slow
+
+var string G_VIS = "عناصر بصرية"
+show_rs_arrows  = input.bool(true, "إظهار أسهم RS", group=G_VIS)
+show_mtf_arrows = input.bool(false,"إظهار أسهم MTF", group=G_VIS)
+
+plotchar(show_rs_arrows and use_rs and rs_trend_up,   title="RS_up", char="↑", location=location.top, color=GOOD, size=size.tiny)
+plotchar(show_rs_arrows and use_rs and rs_trend_down, title="RS_dn", char="↓", location=location.top, color=BAD,  size=size.tiny)
+
+// ===================== 13) متغيرات عامة =====================
+// AI placeholder (متاح لكل الأجزاء)
+var float ai_confidence = 50.0
+// لتطبيق Cooldown بعد بيع (يحدّث عند تأكيد بيع)
+var int last_sell_event_bar = na
+
+// إعادة إنشاء الجداول عند تغيير الخط/الموضع
+if barstate.islast
+    if pro_key_new != pro_key
+        pro_key := pro_key_new
+        if not na(pro_table)
+            table.delete(pro_table)
+        pro_table := na
+    if narr_key_new != narr_key
+        narr_key := narr_key_new
+        if not na(narr_table)
+            table.delete(narr_table)
+        narr_table := na
+    if rc_key_new != rc_key
+        rc_key := rc_key_new
+        if not na(rc_table)
+            table.delete(rc_table)
+        rc_table := na
+
+// ===== نهاية الجزء 1/3 =====
+// ===================== 14) الشموع والأنماط =====================
+var string G_CND = "الشموع والأنماط"
+use_patterns = input.bool(true, "تفعيل الأنماط", group=G_CND)
+require_strong_volume_for_patterns = input.bool(true, "اشتراط حجم قوي للأنماط الحساسة", group=G_CND)
+
+float body           = c - o
+float body_size      = math.abs(body)
+float crange         = h - l
+float upper_wick     = h - math.max(c, o)
+float lower_wick     = math.min(c, o) - l
+float body_prev      = c[1] - o[1]
+float body_size_prev = math.abs(body_prev)
+
+bool big_range_ok = crange > atr_val * 0.5
+bool decent_range = crange > atr_val * 0.3
+bool vol_req_ok   = not require_strong_volume_for_patterns or vol_very_high
+
+bool bullish_engulfing = use_patterns and vol_req_ok and body > 0 and body_prev < 0 and c >= o[1] and o <= c[1] and body_size > body_size_prev * 1.2
+bool bearish_engulfing = use_patterns and vol_req_ok and body < 0 and body_prev > 0 and c <= o[1] and o >= c[1] and body_size > body_size_prev * 1.2
+bool hammer            = use_patterns and (require_strong_volume_for_patterns ? vol_high : true) and lower_wick > body_size * 2.0 and upper_wick < body_size * 0.3 and big_range_ok
+bool shooting_star     = use_patterns and (require_strong_volume_for_patterns ? vol_high : true) and upper_wick > body_size * 2.0 and lower_wick < body_size * 0.3 and big_range_ok
+bool doji              = use_patterns and body_size < crange * 0.1 and decent_range
+bool bullish_pin       = use_patterns and vol_req_ok and lower_wick > crange * 0.6 and upper_wick < crange * 0.2 and c > o
+bool bearish_pin       = use_patterns and vol_req_ok and upper_wick > crange * 0.6 and lower_wick < crange * 0.2 and c < o
+
+bool morning_star = use_patterns and vol_req_ok and c[2] < o[2] and body_size[1] < body_size[2] * 0.3 and c > o and c > (o[2] + c[2]) / 2
+bool evening_star = use_patterns and vol_req_ok and c[2] > o[2] and body_size[1] < body_size[2] * 0.3 and c < o and c < (o[2] + c[2]) / 2
+
+// ===================== 15) أنماط الرسم والفجوات (قابلة للتخصيص) =====================
+var string G_GAPS = "الفجوات"
+enable_gaps           = input.bool(true, "تفعيل الفجوات", group=G_GAPS)
+gap_up_pct            = input.float(2.5, "حد فجوة صاعدة %", step=0.1, minval=0.5, maxval=10, group=G_GAPS)
+gap_down_pct          = input.float(2.5, "حد فجوة هابطة %", step=0.1, minval=0.5, maxval=10, group=G_GAPS)
+include_gaps_in_score = input.bool(false, "تأثير الفجوات على التقييم", group=G_GAPS)
+include_gaps_in_trg   = input.bool(false, "تأثير الفجوات كتريجر", group=G_GAPS)
+
+var string G_CHART = "أنماط الرسم"
+use_chart_patterns = input.bool(true, "تفعيل أنماط الرسم", group=G_CHART)
+pattern_lookback   = input.int(10, "نطاق البحث (هاي/لو)", minval=5, maxval=30, group=G_CHART)
+pivot_len_chart    = input.int(5, "طول Pivot للأنماط", minval=3, maxval=10, group=G_CHART)
+double_thr_pct     = input.float(2.0, "سماحية التشابه للدبل توب/بوتوم %", step=0.1, minval=0.5, maxval=5, group=G_CHART)
+
+float highest_lb   = ta.highest(h, pattern_lookback)
+float lowest_lb    = ta.lowest(l,  pattern_lookback)
+bool breakout_high = ta.crossover(c, highest_lb[1])
+bool breakdown_low = ta.crossunder(c, lowest_lb[1])
+
+float pivot_h_c = ta.pivothigh(h, pivot_len_chart, pivot_len_chart)
+float pivot_l_c = ta.pivotlow(l,  pivot_len_chart, pivot_len_chart)
+
+var float last_pivot_high = na
+var float prev_pivot_high = na
+var float last_pivot_low  = na
+var float prev_pivot_low  = na
+
+if not na(pivot_h_c)
+    prev_pivot_high := last_pivot_high
+    last_pivot_high := pivot_h_c
+
+if not na(pivot_l_c)
+    prev_pivot_low := last_pivot_low
+    last_pivot_low := pivot_l_c
+
+bool double_top    = use_chart_patterns and not na(pivot_h_c) and not na(prev_pivot_high) and math.abs(pivot_h_c - prev_pivot_high) / pivot_h_c < (double_thr_pct/100.0)
+bool double_bottom = use_chart_patterns and not na(pivot_l_c) and not na(prev_pivot_low)  and math.abs(pivot_l_c - prev_pivot_low)  / pivot_l_c < (double_thr_pct/100.0)
+
+// فجوة قابلة للتخصيص
+bool gap_up   = enable_gaps and o > c[1] * (1 + gap_up_pct/100.0)
+bool gap_down = enable_gaps and o < c[1] * (1 - gap_down_pct/100.0)
+
+// ===================== 16) الدعم/المقاومة =====================
+var string G_SR = "الدعم/المقاومة"
+use_sr        = input.bool(true, "تفعيل S/R", group=G_SR)
+sr_period     = input.int(10, "Pivot S/R", minval=5, maxval=20, group=G_SR)
+max_sr_levels = input.int(3, "أقصى مستويات معروضة", minval=2, maxval=5, group=G_SR)
+
+float pivot_high_sr = ta.pivothigh(h, sr_period, sr_period)
+float pivot_low_sr  = ta.pivotlow(l,  sr_period, sr_period)
+
+var float[] support_prices      = array.new_float()
+var int[]   support_strength    = array.new_int()
+var float[] resistance_prices   = array.new_float()
+var int[]   resistance_strength = array.new_int()
+
+if use_sr and not na(pivot_low_sr)
+    bool found_sup = false
+    int  found_idx_sup = 0
+    if array.size(support_prices) > 0
+        for i = 0 to array.size(support_prices) - 1
+            if math.abs(pivot_low_sr - array.get(support_prices, i)) / pivot_low_sr < 0.005
+                found_sup := true
+                found_idx_sup := i
+                break
+    if found_sup
+        array.set(support_strength, found_idx_sup, array.get(support_strength, found_idx_sup) + 1)
+    else
+        array.push(support_prices, pivot_low_sr)
+        array.push(support_strength, 1)
+        if array.size(support_prices) > max_sr_levels * 2
+            array.shift(support_prices)
+            array.shift(support_strength)
+
+if use_sr and not na(pivot_high_sr)
+    bool found_res = false
+    int  found_idx_res = 0
+    if array.size(resistance_prices) > 0
+        for i = 0 to array.size(resistance_prices) - 1
+            if math.abs(pivot_high_sr - array.get(resistance_prices, i)) / pivot_high_sr < 0.005
+                found_res := true
+                found_idx_res := i
+                break
+    if found_res
+        array.set(resistance_strength, found_idx_res, array.get(resistance_strength, found_idx_res) + 1)
+    else
+        array.push(resistance_prices, pivot_high_sr)
+        array.push(resistance_strength, 1)
+        if array.size(resistance_prices) > max_sr_levels * 2
+            array.shift(resistance_prices)
+            array.shift(resistance_strength)
+
+var float nearest_support    = na
+var int   support_str        = 0
+var float nearest_resistance = na
+var int   resistance_str     = 0
+
+if use_sr and array.size(support_prices) > 0
+    float closest_sup = na
+    int   closest_str_sup = 0
+    for i = 0 to array.size(support_prices) - 1
+        float sp = array.get(support_prices, i)
+        if sp < c
+            if na(closest_sup) or (c - sp) < (c - closest_sup)
+                closest_sup := sp
+                closest_str_sup := array.get(support_strength, i)
+    nearest_support := closest_sup
+    support_str     := closest_str_sup
+
+if use_sr and array.size(resistance_prices) > 0
+    float closest_res = na
+    int   closest_str_res = 0
+    for i = 0 to array.size(resistance_prices) - 1
+        float rp = array.get(resistance_prices, i)
+        if rp > c
+            if na(closest_res) or (rp - c) < (closest_res - c)
+                closest_res := rp
+                closest_str_res := array.get(resistance_strength, i)
+    nearest_resistance := closest_res
+    resistance_str     := closest_str_res
+
+bool touching_support    = not na(nearest_support)    and l  <= nearest_support * 1.002 and c >= nearest_support
+bool touching_resistance = not na(nearest_resistance) and h  >= nearest_resistance * 0.998 and c <= nearest_resistance
+bool support_broken      = not na(nearest_support)    and c <  nearest_support * 0.995
+bool resistance_broken   = not na(nearest_resistance) and c >  nearest_resistance * 1.005
+
+// ===================== 17) فايبوناتشي والمنطقة الذهبية (صندوق) =====================
+var string G_FIB = "فايبوناتشي"
+use_fib           = input.bool(true, "تفعيل فايبوناتشي", group=G_FIB)
+fib_period        = input.int(50, "طول النطاق", minval=20, maxval=200, group=G_FIB)
+show_golden_zone  = input.bool(true, "إظهار المنطقة الذهبية (صندوق)", group=G_FIB)
+golden_extend_bar = input.int(20, "امتداد الصندوق يميناً (شموع)", minval=5, maxval=120, group=G_FIB)
+
+float fib_high  = ta.highest(h, fib_period)
+float fib_low   = ta.lowest(l,  fib_period)
+float fib_range = fib_high - fib_low
+float fib_382   = fib_low + fib_range * 0.382
+float fib_618   = fib_low + fib_range * 0.618
+float golden_zone_low  = math.min(fib_382, fib_618)
+float golden_zone_high = math.max(fib_382, fib_618)
+
+bool in_golden_zone   = use_fib and c >= golden_zone_low and c <= golden_zone_high
+bool near_golden_zone = use_fib and c > golden_zone_low * 0.98 and c < golden_zone_high * 1.02
+
+var box golden_box = na
+if barstate.islast
+    if not na(golden_box)
+        box.delete(golden_box)
+    if use_fib and show_golden_zone and not na(golden_zone_low) and not na(golden_zone_high)
+        int left  = bar_index - fib_period
+        int right = bar_index + golden_extend_bar
+        float y_top = math.max(golden_zone_high, golden_zone_low)
+        float y_bot = math.min(golden_zone_high, golden_zone_low)
+        golden_box := box.new(left, y_top, right, y_bot, bgcolor=color.new(color.rgb(255,215,0), 88), border_color=color.new(color.rgb(255,215,0), 50))
+
+// ===================== 18) MTF (مع HTF Confirm اختياري) =====================
+var string G_MTF = "الإطارات الزمنية الأعلى"
+use_mtf          = input.bool(true, "تفعيل MTF", group=G_MTF)
+htf_1            = input.timeframe("60",  "إطار أعلى 1 (60 دقيقة)", group=G_MTF)
+htf_2            = input.timeframe("240", "إطار أعلى 2 (240 دقيقة)", group=G_MTF)
+htf_3            = input.timeframe("D",   "إطار أعلى 3 (يومي)",     group=G_MTF)
+enable_mtf_confirm = input.bool(false, "HTF Confirm Close (إزاحة شمعة واحدة)", group=G_MTF)
+
+float h1_ema_med_raw  = use_mtf ? request.security(syminfo.tickerid, htf_1, ta.ema(close, ema_med_len),  lookahead=barmerge.lookahead_off) : na
+float h1_ema_slow_raw = use_mtf ? request.security(syminfo.tickerid, htf_1, ta.ema(close, ema_slow_len), lookahead=barmerge.lookahead_off) : na
+float h2_ema_med_raw  = use_mtf ? request.security(syminfo.tickerid, htf_2, ta.ema(close, ema_med_len),  lookahead=barmerge.lookahead_off) : na
+float h2_ema_slow_raw = use_mtf ? request.security(syminfo.tickerid, htf_2, ta.ema(close, ema_slow_len), lookahead=barmerge.lookahead_off) : na
+float h3_ema_med_raw  = use_mtf ? request.security(syminfo.tickerid, htf_3, ta.ema(close, ema_med_len),  lookahead=barmerge.lookahead_off) : na
+float h3_ema_slow_raw = use_mtf ? request.security(syminfo.tickerid, htf_3, ta.ema(close, ema_slow_len), lookahead=barmerge.lookahead_off) : na
+
+float h1_ema_med  = enable_mtf_confirm ? h1_ema_med_raw[1]  : h1_ema_med_raw
+float h1_ema_slow = enable_mtf_confirm ? h1_ema_slow_raw[1] : h1_ema_slow_raw
+float h2_ema_med  = enable_mtf_confirm ? h2_ema_med_raw[1]  : h2_ema_med_raw
+float h2_ema_slow = enable_mtf_confirm ? h2_ema_slow_raw[1] : h2_ema_slow_raw
+float h3_ema_med  = enable_mtf_confirm ? h3_ema_med_raw[1]  : h3_ema_med_raw
+float h3_ema_slow = enable_mtf_confirm ? h3_ema_slow_raw[1] : h3_ema_slow_raw
+
+int mtf_trend_1 = use_mtf and not na(h1_ema_med) and not na(h1_ema_slow) ? (h1_ema_med > h1_ema_slow ? 1 : -1) : 0
+int mtf_trend_2 = use_mtf and not na(h2_ema_med) and not na(h2_ema_slow) ? (h2_ema_med > h2_ema_slow ? 1 : -1) : 0
+int mtf_trend_3 = use_mtf and not na(h3_ema_med) and not na(h3_ema_slow) ? (h3_ema_med > h3_ema_slow ? 1 : -1) : 0
+
+bool mtf_all_bullish     = use_mtf and mtf_trend_1 > 0 and mtf_trend_2 > 0 and mtf_trend_3 > 0
+bool mtf_all_bearish     = use_mtf and mtf_trend_1 < 0 and mtf_trend_2 < 0 and mtf_trend_3 < 0
+bool mtf_mixed           = use_mtf and not mtf_all_bullish and not mtf_all_bearish
+bool mtf_divergence_bull = use_mtf and ((mtf_trend_1 > 0 and mtf_trend_2 < 0) or (mtf_trend_2 > 0 and mtf_trend_3 < 0))
+bool mtf_divergence_bear = use_mtf and ((mtf_trend_1 < 0 and mtf_trend_2 > 0) or (mtf_trend_2 < 0 and mtf_trend_3 > 0))
+
+// (اختياري) عرض أسهم MTF
+plotchar(show_mtf_arrows and use_mtf and (mtf_trend_1 > 0), title="MTF1 Up", char="▲", location=location.top, color=GOOD, size=size.tiny)
+plotchar(show_mtf_arrows and use_mtf and (mtf_trend_2 > 0), title="MTF2 Up", char="▲", location=location.top, color=GOOD, size=size.tiny)
+plotchar(show_mtf_arrows and use_mtf and (mtf_trend_3 > 0), title="MTF3 Up", char="▲", location=location.top, color=GOOD, size=size.tiny)
+// سهم هابط
+plotchar(show_mtf_arrows and use_mtf and (mtf_trend_1 < 0), title="MTF1 Down", char="▼", location=location.top, color=BAD, size=size.tiny)
+plotchar(show_mtf_arrows and use_mtf and (mtf_trend_2 < 0), title="MTF2 Down", char="▼", location=location.top, color=BAD, size=size.tiny)
+plotchar(show_mtf_arrows and use_mtf and (mtf_trend_3 < 0), title="MTF3 Down", char="▼", location=location.top, color=BAD, size=size.tiny)
+
+// ===================== 19) نظام التقييم Pro-Grade (مع تأثير smart_mode) =====================
+var string G_SCORE = "نظام التقييم (Pro-Grade)"
+show_score_details = input.bool(false, "إظهار تفاصيل الدرجة", group=G_SCORE)
+
+float trend_score = 0.0
+if ema_aligned_bull
+    trend_score += price_above_ema ? 18.0 : 12.0
+else if ema_aligned_bear
+    trend_score += price_below_ema ? -18.0 : -12.0
+if golden_cross
+    trend_score += 8.0
+else if death_cross
+    trend_score -= 8.0
+if above_vwap
+    trend_score += 5.0
+else if below_vwap
+    trend_score -= 5.0
+trend_score := math.max(-30.0, math.min(30.0, trend_score))
+
+float momentum_score = 0.0
+if rsi_bull_zone and not rsi_ob
+    momentum_score += 10.0
+else if rsi_bear_zone and not rsi_os
+    momentum_score -= 10.0
+if rsi_extreme_os and trend_up
+    momentum_score += 8.0
+else if rsi_extreme_ob and trend_down
+    momentum_score -= 8.0
+if adx_val >= (adx_threshold + 10) and di_plus > di_minus
+    momentum_score += 12.0
+else if adx_val >= (adx_threshold + 10) and di_minus > di_plus
+    momentum_score -= 12.0
+else if adx_strong and di_plus > di_minus
+    momentum_score += 8.0
+else if adx_strong and di_minus > di_plus
+    momentum_score -= 8.0
+momentum_score := math.max(-25.0, math.min(25.0, momentum_score))
+
+float volume_score = 0.0
+if vol_bullish
+    volume_score += 10.0
+else if vol_bearish
+    volume_score -= 10.0
+if net_pressure > 0 and volume > vol_sma
+    volume_score += 6.0
+else if net_pressure < 0 and volume > vol_sma
+    volume_score -= 6.0
+if val_min_enabled
+    if val_sma20 >= effective_min_traded_value * 1.5
+        volume_score += 3.0
+    else if val_sma20 < effective_min_traded_value
+        volume_score -= 5.0
+volume_score := math.max(-25.0, math.min(25.0, volume_score))
+
+float pattern_score = 0.0
+if bullish_engulfing or morning_star
+    pattern_score += 8.0
+else if bearish_engulfing or evening_star
+    pattern_score -= 8.0
+if hammer or bullish_pin
+    pattern_score += 5.0
+if shooting_star or bearish_pin
+    pattern_score -= 5.0
+if breakout_high
+    pattern_score += 5.0
+else if breakdown_low
+    pattern_score -= 5.0
+if double_top
+    pattern_score -= 7.0
+if double_bottom
+    pattern_score += 7.0
+
+// تأثير الفجوات على التقييم (اختياري)
+if include_gaps_in_score and enable_gaps
+    if gap_up
+        pattern_score += 2.0
+    if gap_down
+        pattern_score -= 2.0
+
+pattern_score := math.max(-10.0, math.min(10.0, pattern_score))
+
+float sr_score = 0.0
+if not na(nearest_support)
+    float dist_to_sup = ((c - nearest_support) / c) * 100.0
+    if dist_to_sup < 1.0
+        sr_score += support_str >= 3 ? 8.0 : 6.0
+    else if dist_to_sup < 2.0
+        sr_score += 4.0
+if not na(nearest_resistance)
+    float dist_to_res = ((nearest_resistance - c) / c) * 100.0
+    if dist_to_res < 1.0
+        sr_score -= resistance_str >= 3 ? 8.0 : 6.0
+    else if dist_to_res < 2.0
+        sr_score -= 4.0
+if resistance_broken
+    sr_score += 8.0
+else if support_broken
+    sr_score -= 8.0
+sr_score := math.max(-12.0, math.min(12.0, sr_score))
+
+float rs_score = 0.0
+if use_rs
+    if rs_trend_up
+        rs_score += 5.0
+    else if rs_trend_down
+        rs_score -= 5.0
+rs_score := math.max(-8.0, math.min(8.0, rs_score))
+
+float raw_score = trend_score + momentum_score + volume_score + pattern_score + sr_score + rs_score
+
+// تعديل MTF
+float mtf_adjustment = 0.0
+if use_mtf
+    if mtf_all_bullish
+        mtf_adjustment := 15.0
+    else if mtf_all_bearish
+        mtf_adjustment := -15.0
+    else if mtf_divergence_bull or mtf_divergence_bear
+        mtf_adjustment := -5.0
+
+// خصم سيولة ضعيفة
+float liquidity_adj = liquid_ok ? 0.0 : -15.0
+
+float final_score = math.max(-100.0, math.min(100.0, raw_score + mtf_adjustment + liquidity_adj))
+
+string signal_text = final_score >= 75 ? txt("شراء قوي جداً","VSTRONG BUY") :
+                     final_score >= 55 ? txt("شراء قوي","STRONG BUY") :
+                     final_score >= 35 ? txt("شراء","BUY") :
+                     final_score <= -75? txt("بيع قوي جداً","VSTRONG SELL") :
+                     final_score <= -55? txt("بيع قوي","STRONG SELL") :
+                     final_score <= -35? txt("بيع","SELL") : txt("محايد","NEUTRAL")
+
+color signal_color = final_score >= 55  ? color.new(GOOD, 0) :
+                     final_score >= 35  ? color.new(color.rgb(76,175,80), 0) :
+                     final_score <= -55 ? color.new(BAD, 0) :
+                     final_score <= -35 ? color.new(color.rgb(244,67,54), 0) : color.new(WARN, 0)
+
+// ===================== 20) مرشحات الدخول (مع تأثير smart_mode) =====================
+var string G_FLT = "مرشحات الدخول"
+use_strict_filters = input.bool(true, "فلاتر صارمة", group=G_FLT)
+
+int rsi_min_buy = enable_smart_mode_effect and is_beginner ? 45 : 40
+
+bool flt_trend     = not use_strict_filters or ema_aligned_bull
+bool flt_rsi       = (rsi_val >= rsi_min_buy and rsi_val <= 70)
+bool flt_adx       = not use_strict_filters or adx_strong
+bool flt_volume    = (enable_smart_mode_effect and is_beginner) ? vol_high : (not use_strict_filters or vol_high)
+// مبتدئ: تجاهل شرط MTF السلبي
+bool flt_mtf       = (enable_smart_mode_effect and is_beginner) ? true : (not use_strict_filters or not mtf_all_bearish)
+bool flt_session   = filter_session
+bool flt_liquidity = liquid_ok
+bool flt_rs        = not use_strict_filters or not (use_rs and rs_trend_down)
+
+bool all_filters_pass = flt_trend and flt_rsi and flt_adx and flt_volume and flt_mtf and flt_session and flt_liquidity and flt_rs and filter_sharia_buy
+
+// ===================== 21) حزمة التريجرات (VWAP Reclaim مع vwap_lookback) =====================
+var string G_TRG = "حزمة التريجرات"
+enable_trend_cont   = input.bool(true, "استمرار الاتجاه (TC)", group=G_TRG)
+trend_cont_lb       = input.int(10, "نطاق TC", minval=5, maxval=50, group=G_TRG)
+
+enable_vwap_reclaim = input.bool(true, "استعادة VWAP (Reclaim)", group=G_TRG)
+enable_vwap_lookback= input.bool(true, "اعتماد نافذة vwap_lookback", group=G_TRG)
+vwap_lookback       = input.int(8, "فترة مراقبة VWAP", minval=3, maxval=50, group=G_TRG)
+vwap_min_frac       = input.float(0.4, "الحد الأدنى نسبةً للفترة (0.4=40%)", step=0.05, minval=0.1, maxval=0.9, group=G_TRG)
+min_consec_below    = input.int(3, "حد أدنى تحت VWAP (متتالي)", minval=1, maxval=10, group=G_TRG)
+min_consec_above    = input.int(3, "حد أدنى فوق VWAP (متتالي) للخروج", minval=1, maxval=10, group=G_TRG)
+
+enable_ema_bounce   = input.bool(true, "ارتداد من EMA20", group=G_TRG)
+ema_bounce_tol      = input.float(0.003, "سماحية الارتداد", step=0.001, minval=0.0, maxval=0.02, group=G_TRG)
+
+enable_pivot_break  = input.bool(true, "اختراق Pivot", group=G_TRG)
+pivot_len_rev       = input.int(3, "Pivot Low للانعكاس المبكر", minval=2, maxval=8, group=G_TRG)
+
+// أعلى هاي لـ TC
+float highest_tc = ta.highest(h, trend_cont_lb)
+
+// سلاسل متتالية فوق/تحت VWAP
+var int below_streak = 0
+below_streak := below_vwap ? nz(below_streak[1], 0) + 1 : 0
+var int above_streak = 0
+above_streak := above_vwap ? nz(above_streak[1], 0) + 1 : 0
+
+// sum window تحت VWAP
+float _cum_below = ta.cum(below_vwap ? 1.0 : 0.0)
+float below_window_cnt = _cum_below - nz(_cum_below[vwap_lookback])
+float below_window_min = math.ceil(vwap_lookback * vwap_min_frac)
+
+// حساب التقاطعات مرة لكل شمعة
+bool cross_vwap_up     = ta.crossover(c, vwap_val)
+bool cross_vwap_down   = ta.crossunder(c, vwap_val)
+bool cross_ema50_down  = ta.crossunder(c, ema_med)
+bool cross_ema200_down = ta.crossunder(c, ema_slow)
+bool cross_ema20_up    = ta.crossover(c, ema_fast)
+
+// التريجرات
+bool trig_trend_cont   = enable_trend_cont and c > highest_tc[1] and ema_aligned_bull and rsi_val > 50 and adx_val >= 20 and volume >= vol_sma
+bool vwap_window_ok    = (not enable_vwap_lookback) or (below_window_cnt >= below_window_min)
+bool trig_vwap_reclaim = enable_vwap_reclaim and cross_vwap_up and nz(below_streak[1], 0) >= min_consec_below and vwap_window_ok and volume > vol_sma
+bool trig_ema_bounce   = enable_ema_bounce and l <= ema_fast * (1.0 + ema_bounce_tol) and c > o
+bool trig_pivot_break  = enable_pivot_break and not na(last_pivot_high) and c > last_pivot_high
+
+// تريجر انعكاس مبكّر
+float pivL_rev = ta.pivotlow(l, pivot_len_rev, pivot_len_rev)
+bool reversal_buy = cross_ema20_up and nz(below_streak[1],0) >= 1 and volume > vol_sma and not na(pivL_rev[1])
+
+// تريجرات إضافية
+bool trigger_engulfing      = bullish_engulfing and c > ema_fast
+bool trigger_breakout       = resistance_broken and vol_high
+bool trigger_golden_bounce  = in_golden_zone and (hammer or bullish_pin) and above_vwap
+bool trigger_support_bounce = touching_support and (hammer or bullish_pin)
+
+// تأثير الفجوة كـ تريجر (اختياري: gap_up يعزّز الشراء، gap_down يعزّز البيع)
+bool trg_gap_buy  = include_gaps_in_trg and enable_gaps and gap_up  and volume > vol_sma
+bool trg_gap_sell = include_gaps_in_trg and enable_gaps and gap_down and volume > vol_sma
+
+bool any_buy_trigger_legacy = trigger_engulfing or trigger_breakout or trigger_golden_bounce or trigger_support_bounce
+bool any_buy_trigger_ext    = trig_trend_cont or trig_vwap_reclaim or trig_ema_bounce or trig_pivot_break or reversal_buy or trg_gap_buy
+bool any_buy_trigger_all    = any_buy_trigger_legacy or any_buy_trigger_ext
+
+// ===================== 22) إشارات الشراء/الخروج + حراس/قيود =====================
+// smart_mode تأثيرات إضافية عند الشراء (Pro)
+float rr_req_pro = 1.6  // سيتم فحصه لاحقاً في الجزء 3/3 بعد حساب RR الحقيقي
+
+// فلاتر الشراء الأساسية
+bool confirmed_buy_v1 = (final_score >= 55) and all_filters_pass and any_buy_trigger_all
+
+var string G_V2 = "شراء مرن (v2)"
+use_buy_v2         = input.bool(true, "تفعيل شراء v2", group=G_V2)
+bool filter_rsi_flex  = rsi_val >= 45 and rsi_val <= 75
+bool filter_adx_flex  = adx_val >= 20
+bool filter_base_flex = (price_above_ema or above_vwap)
+bool all_filters_v2   = flt_session and flt_liquidity and filter_rsi_flex and filter_adx_flex and filter_base_flex and (not use_mtf or not mtf_all_bearish) and filter_sharia_buy
+bool confirmed_buy_v2 = use_buy_v2 and final_score >= 45 and any_buy_trigger_ext and all_filters_v2
+
+// Buy Cooldown بعد بيع (مع Override لإشارات قوية)
+var string G_CD = "Cooldown الشراء"
+enable_buy_cooldown   = input.bool(true, "تفعيل Buy Cooldown بعد بيع", group=G_CD)
+buy_cooldown_bars     = input.int(8, "فترة التبريد (شموع)", minval=1, maxval=200, group=G_CD)
+buy_override_on_strong= input.bool(true, "السماح بتجاهل التبريد عند تريجر قوي", group=G_CD)
+bool cooldown_active  = enable_buy_cooldown and not na(last_sell_event_bar) and (bar_index - last_sell_event_bar < buy_cooldown_bars)
+bool strong_buy_now   = trig_trend_cont or (trig_pivot_break and vol_high) or (trig_vwap_reclaim and volume > vol_sma * 1.5) or trg_gap_buy
+bool cooldown_allows  = (not cooldown_active) or (buy_override_on_strong and strong_buy_now)
+
+// Min Hold Bars قبل السماح بخروج (سيتم تطبيقه في منطق البيع)
+var string G_HOLD = "Min Hold Bars"
+enable_min_hold = input.bool(true, "تفعيل Min Hold Bars", group=G_HOLD)
+min_hold_bars   = input.int(2, "الحد الأدنى للاحتفاظ (شموع)", minval=1, maxval=20, group=G_HOLD)
+var int last_entry_bar = na  // سيتم تحديثه في الجزء 3/3 عند تأكيد شراء
+
+// تأكيد الشراء مع تبريد الشراء
+bool confirmed_buy = (confirmed_buy_v1 or confirmed_buy_v2) and cooldown_allows
+
+// تريجرات خروج صريحة فقط
+bool exit_cross_ema50   = cross_ema50_down and adx_val >= adx_threshold and not above_vwap
+bool exit_cross_ema200  = cross_ema200_down
+bool exit_support_break = support_broken and vol_high
+bool exit_vwap_loss     = cross_vwap_down and nz(above_streak[1], 0) >= min_consec_above and volume > vol_sma
+bool trg_gap_exit       = trg_gap_sell
+
+// Oversold Guard + تجميد زمني
+var string G_OSG = "Oversold Guard"
+oversold_freeze_bars = input.int(3, "تجميد الخروج N شموع", minval=1, maxval=20, group=G_OSG)
+bool oversold_guard = (rsi_val <= 30 or ((ema_fast - c) / math.max(atr_val, 1e-6) >= 1.0)) and (touching_support or in_golden_zone or double_bottom or hammer or bullish_pin)
+var int oversold_freeze_until = na
+if oversold_guard
+    int proposed = bar_index + oversold_freeze_bars
+    oversold_freeze_until := na(oversold_freeze_until) ? proposed : math.max(oversold_freeze_until, proposed)
+bool freeze_active = not na(oversold_freeze_until) and bar_index < oversold_freeze_until
+
+// تطبيق Min Hold Bars (من آخر شراء)
+bool hold_active = enable_min_hold and not na(last_entry_bar) and (bar_index - last_entry_bar < min_hold_bars)
+
+// الخروج: يُسمح خلال التجميد/الـ Hold فقط عند خروج قوي
+bool strong_exit = exit_cross_ema200 or (exit_support_break and vol_very_high)
+bool exit_allowed_now = (not freeze_active and not hold_active) or strong_exit
+
+bool confirmed_sell = exit_allowed_now and (exit_cross_ema50 or exit_cross_ema200 or exit_support_break or exit_vwap_loss or trg_gap_exit) and not (freeze_active and not strong_exit)
+
+// ===== نهاية الجزء 2/3 =====
+// ===================== 23) الأهداف والوقف وإدارة الصفقة =====================
+var string G_TRADE = "الأهداف والوقف وإدارة الصفقة"
+use_targets   = input.bool(true, "تفعيل الأهداف والوقف", group=G_TRADE)
+target_method = input.string("ATR", "طريقة الأهداف", options=["ATR","نسبة مئوية"], group=G_TRADE)
+
+atr_target_1  = input.float(1.5, "T1 (أضعاف ATR)", step=0.1, minval=0.2, maxval=15, group=G_TRADE)
+atr_target_2  = input.float(2.5, "T2 (أضعاف ATR)", step=0.1, minval=0.5, maxval=20, group=G_TRADE)
+atr_target_3  = input.float(4.0, "T3 (أضعاف ATR)", step=0.1, minval=1.0, maxval=30, group=G_TRADE)
+atr_stop_loss = input.float(1.0, "SL (أضعاف ATR)", step=0.1, minval=0.2, maxval=10, group=G_TRADE)
+
+pct_target_1  = input.float(2.0, "T1 %", step=0.1, minval=0.2, maxval=20, group=G_TRADE)
+pct_target_2  = input.float(4.0, "T2 %", step=0.1, minval=0.5, maxval=30, group=G_TRADE)
+pct_target_3  = input.float(7.0, "T3 %", step=0.1, minval=1.0, maxval=50, group=G_TRADE)
+pct_stop_loss = input.float(1.5, "SL %", step=0.1, minval=0.2, maxval=10, group=G_TRADE)
+
+// حساب الأهداف/الوقف
+float calc_target_1 = use_targets ? (target_method == "ATR" ? c + atr_val * atr_target_1 : c * (1 + pct_target_1 / 100.0)) : na
+float calc_target_2 = use_targets ? (target_method == "ATR" ? c + atr_val * atr_target_2 : c * (1 + pct_target_2 / 100.0)) : na
+float calc_target_3 = use_targets ? (target_method == "ATR" ? c + atr_val * atr_target_3 : c * (1 + pct_target_3 / 100.0)) : na
+float calc_stop_base= use_targets ? (target_method == "ATR" ? c - atr_val * atr_stop_loss : c * (1 - pct_stop_loss / 100.0)) : na
+
+// وقف محسّن بالدعم
+float optimized_stop = use_targets ? (not na(nearest_support) and nearest_support < c ? math.max(calc_stop_base, nearest_support * 0.995) : calc_stop_base) : na
+
+// وقف متحرك + نقل للتعادل بعد T1
+use_trailing = input.bool(true, "تفعيل وقف متحرك (ATR)", group=G_TRADE)
+trail_mult   = input.float(2.5, "مضاعف ATR للوقف المتحرك", step=0.1, group=G_TRADE)
+be_after_t1  = input.bool(true, "انقل الوقف للتعادل بعد T1", group=G_TRADE)
+
+float trail_stop = use_targets and use_trailing ? (c - atr_val * trail_mult) : na
+float sl_dynamic = na
+if use_targets
+    sl_dynamic := optimized_stop
+    if use_trailing and not na(trail_stop)
+        sl_dynamic := math.max(sl_dynamic, trail_stop)
+    // نقل للتعادل بعد T1
+    bool be_active = be_after_t1 and c >= calc_target_1
+    if be_active and not na(sl_dynamic)
+        sl_dynamic := math.max(sl_dynamic, c)
+
+// حساب R:R (على T2 افتراضياً)
+float risk     = use_targets and not na(sl_dynamic) ? (c - sl_dynamic) : na
+float reward_1 = use_targets and not na(calc_target_1) ? (calc_target_1 - c) : na
+float reward_2 = use_targets and not na(calc_target_2) ? (calc_target_2 - c) : na
+float rr_ratio = use_targets and not na(risk) and risk > 0 and not na(reward_2) ? (reward_2 / risk) : na
+bool  good_rr  = not na(rr_ratio) and rr_ratio >= 1.5
+
+// جني جزئي (توصية)
+partial_t1_pct = input.int(50, "نسبة جني عند T1 %", minval=0, maxval=100, group=G_TRADE)
+int partial_t2_pct = 100 - partial_t1_pct
+
+// ===================== 24) تطبيق نهائي للوضع الذكي (Pro) وإشارات نهائية =====================
+// اشتراط RR≥1.6 في وضع محترف (مع إمكانية تعطيل التأثير)
+bool rr_ok_for_pro = (not use_targets) or (not na(rr_ratio) and rr_ratio >= rr_req_pro)
+bool pro_gate_ok = (not enable_smart_mode_effect) or (not is_pro) or (rr_ok_for_pro and not (use_mtf and mtf_all_bearish))
+ 
+// الشراء النهائي
+bool confirmed_buy_final = confirmed_buy and pro_gate_ok
+
+// تحديث أزمنة الدخول/البيع للاستخدام في Min Hold وCooldown
+if barstate.isconfirmed and confirmed_buy_final
+    last_entry_bar := bar_index
+if barstate.isconfirmed and confirmed_sell
+    last_sell_event_bar := bar_index
+
+// ===================== 25) أدوات عرض ووظائف مساعدة =====================
+emj_ok()   => use_emojis ? "✅" : ""
+emj_bad()  => use_emojis ? "❌" : ""
+emj_warn() => use_emojis ? "⚠️" : ""
+emj_bull() => use_emojis ? "🟢" : ""
+emj_bear() => use_emojis ? "🔴" : ""
+emj_neut() => use_emojis ? "🟡" : ""
+emj_info() => use_emojis ? "ℹ️" : ""
+emj_ai()   => use_emojis ? "🧠" : ""
+emj_liq()  => use_emojis ? "💧" : ""
+emj_sess() => use_emojis ? "🕒" : ""
+emj_shar() => use_emojis ? "🕌" : ""
+emj_mtf()  => use_emojis ? "🧭" : ""
+emj_sr()   => use_emojis ? "🧱" : ""
+emj_rr()   => use_emojis ? "🎯" : ""
+emj_trnd() => use_emojis ? "📈" : ""
+emj_vwap() => use_emojis ? "📏" : ""
+
+// شريط تقدم للدرجة
+score_bar(scr) =>
+    int blocks = 10
+    float norm = math.max(0.0, math.min(1.0, (scr + 100.0) / 200.0))
+    int filled = math.round(norm * blocks)
+    string s = ""
+    for i = 0 to blocks - 1
+        s += i < filled ? "█" : "░"
+    s
+
+// لون خلفية الدرجة
+color score_bg_color = final_score >= 70 ? GOOD :
+                       final_score >= 40 ? color.rgb(34,197,94) :
+                       final_score >= 0  ? NEUTRAL :
+                       final_score >= -40? WARN :
+                       final_score >= -70? color.rgb(244,63,94) : BAD
+
+// تنسيق قيمة التداول
+format_val_egp(v) => na(v) ? "-" : (math.abs(v) >= 1e9 ? str.tostring(v/1e9, "#.##") + txt("ب","B") : (math.abs(v) >= 1e6 ? str.tostring(v/1e6, "#.##") + txt("م","M") : (math.abs(v) >= 1e3 ? str.tostring(v/1e3, "#.##") + txt("ك","K") : str.tostring(v, "#"))))
+
+// حالة الجلسة
+string sess_txt = in_opening ? txt("الافتتاح","Opening") : in_regular ? txt("عادية","Regular") : in_closing ? txt("الإغلاق","Closing") : txt("خارج التداول","Off")
+
+// ===================== 26) Pro Dashboard (4 أعمدة) =====================
+show_pro_dashboard = input.bool(true, "عرض لوحة المحترف", group=G_UI)
+
+int pro_cols = 4
+int pro_rows = 24
+
+if show_pro_dashboard and na(pro_table)
+    pro_table := table.new(pro_pos, pro_cols, pro_rows, bgcolor=color.new(PANEL_BG, 0), border_width=1, border_color=PANEL_BORDER)
+
+if show_pro_dashboard and barstate.islast
+    int r = 0
+    table.cell(pro_table, 0, r, "EGX Pro v9", bgcolor=ACCENT, text_color=color.white, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 1, r, syminfo.ticker + " · " + timeframe.period, bgcolor=ACCENT, text_color=color.white, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 2, r, emj_shar() + " " + (is_sharia_compliant ? txt("الشريعة: متوافق","Sharia: OK") : txt("الشريعة: غير متوافق","Sharia: Not OK")), bgcolor=is_sharia_compliant ? GOOD : BAD, text_color=color.white, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 3, r, emj_sess() + " " + txt("الجلسة: ","Session: ") + sess_txt, bgcolor=INFO, text_color=color.white, text_size=to_font(pro_font_size))
+    r += 1
+
+    table.cell(pro_table, 0, r, txt("الدرجة","Score"), text_color=TEXT_SUB, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 1, r, str.tostring(final_score, "#") + "/100", bgcolor=score_bg_color, text_color=color.white, text_size=to_font_big(pro_font_size))
+    table.cell(pro_table, 2, r, score_bar(final_score), text_color=color.white, bgcolor=color.new(NEUTRAL, 60), text_size=to_font(pro_font_size))
+    table.cell(pro_table, 3, r, signal_text, bgcolor=color.new(signal_color, 0), text_color=color.white, text_size=to_font(pro_font_size))
+    r += 1
+
+    float daily_change = o != 0 ? ((c - o) / o) * 100.0 : na
+    string change_text = na(daily_change) ? "-" : (daily_change >= 0 ? "+ " : "- ") + str.tostring(math.abs(daily_change), "#.##") + "%"
+    string liq_txt = (val_min_enabled ? (liquid_ok ? emj_ok() + " " + txt("سيولة كافية","Liquidity OK") : emj_bad() + " " + txt("سيولة ضعيفة","Low Liquidity")) : emj_info() + " " + txt("فلتر السيولة غير مفعل","Liquidity filter off"))
+    table.cell(pro_table, 0, r, txt("السعر","Price"), text_color=TEXT_SUB, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 1, r, str.tostring(c, "#.###") + "  " + change_text, text_color=(na(daily_change) or daily_change >= 0) ? GOOD : BAD, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 2, r, emj_liq() + " " + liq_txt, text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 3, r, txt("قيمة 20: ","Val20: ") + format_val_egp(val_sma20), text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    r += 1
+
+    string trend_txt_local = ema_aligned_bull ? txt("اتجاه: صاعد","Trend: Bull") : ema_aligned_bear ? txt("اتجاه: هابط","Trend: Bear") : txt("اتجاه: جانبي","Trend: Sideways")
+    table.cell(pro_table, 0, r, emj_trnd() + " " + trend_txt_local, text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 1, r, "VWAP " + (above_vwap ? emj_bull() : emj_bear()), text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 2, r, "RSI " + str.tostring(rsi_val, "#") + (rsi_ob ? " OB" : rsi_os ? " OS" : ""), text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 3, r, "ADX " + str.tostring(adx_val, "#"), text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    r += 1
+
+    string mtf_status = (not use_mtf) ? txt("معطل","Off") : mtf_all_bullish ? txt("كلها صاعد","All Bull") : mtf_all_bearish ? txt("كلها هابط","All Bear") : txt("مختلط","Mixed")
+    table.cell(pro_table, 0, r, emj_mtf() + " MTF: " + mtf_status, bgcolor=mtf_all_bullish ? GOOD : mtf_all_bearish ? BAD : NEUTRAL, text_color=color.white, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 1, r, "1:" + (mtf_trend_1>0?"↑":"↓") + " 4:" + (mtf_trend_2>0?"↑":"↓") + " D:" + (mtf_trend_3>0?"↑":"↓"), text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 2, r, use_rs ? ("RS vs BM: " + (rs_trend_up ? emj_bull() : rs_trend_down ? emj_bear() : emj_neut())) : "-", text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 3, r, emj_ai() + " AI " + str.tostring(ai_confidence, "#") + "%", text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    r += 1
+
+    string sup_txt = not na(nearest_support) ? str.tostring(nearest_support, "#.##") : "-"
+    string res_txt = not na(nearest_resistance) ? str.tostring(nearest_resistance, "#.##") : "-"
+    table.cell(pro_table, 0, r, emj_sr() + " " + txt("دعم: ","S: ") + sup_txt, text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 1, r, txt("مقاومة: ","R: ") + res_txt, text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 2, r, support_broken ? txt("كسر دعم","Support Broken") : resistance_broken ? txt("اختراق مقاومة","Resistance Broken") : "-", text_color=support_broken?BAD:resistance_broken?GOOD:TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 3, r, in_golden_zone ? txt("منطقة ذهبية","Golden zone") : "-", text_color=INFO, text_size=to_font(pro_font_size))
+    r += 1
+
+    if use_targets
+        table.cell(pro_table, 0, r, emj_rr() + " T1: " + str.tostring(calc_target_1, "#.##"), text_color=GOOD, text_size=to_font(pro_font_size))
+        table.cell(pro_table, 1, r, "T2: " + str.tostring(calc_target_2, "#.##"), text_color=GOOD, text_size=to_font(pro_font_size))
+        table.cell(pro_table, 2, r, "T3: " + (na(calc_target_3)?"-":str.tostring(calc_target_3, "#.##")), text_color=GOOD, text_size=to_font(pro_font_size))
+        table.cell(pro_table, 3, r, txt("وقف: ","SL: ") + (na(sl_dynamic)?"-":str.tostring(sl_dynamic, "#.##")), text_color=BAD, text_size=to_font(pro_font_size))
+        r += 1
+        table.cell(pro_table, 0, r, txt("R:R 1:","R:R 1:") + (na(rr_ratio)?"-":str.tostring(rr_ratio, "#.#")), text_color=good_rr?GOOD:WARN, text_size=to_font(pro_font_size))
+        table.cell(pro_table, 1, r, txt("BE@T1: ","BE@T1: ") + (be_after_t1?"ON":"OFF"), text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+        table.cell(pro_table, 2, r, txt("Trailing: ","Trailing: ") + (use_trailing?("ON x"+str.tostring(trail_mult,"#.##")):"OFF"), text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+        table.cell(pro_table, 3, r, txt("جني: ","Partial: ") + str.tostring(partial_t1_pct, "#") + "%/" + str.tostring(partial_t2_pct, "#") + "%", text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+        r += 1
+
+    string trg_txt = ""
+    if trig_trend_cont
+        trg_txt += (str.length(trg_txt)>0?" · ":"") + txt("استمرار الاتجاه","TC")
+    if trig_vwap_reclaim
+        trg_txt += (str.length(trg_txt)>0?" · ":"") + "VWAP↗"
+    if trig_ema_bounce
+        trg_txt += (str.length(trg_txt)>0?" · ":"") + txt("ارتداد EMA20","EMA Bounce")
+    if trig_pivot_break
+        trg_txt += (str.length(trg_txt)>0?" · ":"") + txt("اختراق Pivot","Pivot Break")
+    if reversal_buy
+        trg_txt += (str.length(trg_txt)>0?" · ":"") + txt("انعكاس مبكر","Early Rev")
+    if trg_gap_buy
+        trg_txt += (str.length(trg_txt)>0?" · ":"") + txt("فجوة صاعدة","GapUp")
+    table.cell(pro_table, 0, r, emj_vwap() + " " + txt("تريجرات: ","Triggers: "), text_color=TEXT_SUB, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 1, r, str.length(trg_txt)>0?trg_txt:"-", text_color=TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 2, r, gap_up?txt("فجوة صاعدة","Gap Up"):gap_down?txt("فجوة هابطة","Gap Down"):"-", text_color=gap_up?GOOD:gap_down?BAD:TEXT_MAIN, text_size=to_font(pro_font_size))
+    table.cell(pro_table, 3, r, confirmed_buy_final ? txt("شراء مؤكد","Confirmed BUY") : confirmed_sell ? txt("خروج","Exit") : "-", text_color=color.white, bgcolor=confirmed_buy_final?GOOD:confirmed_sell?BAD:na, text_size=to_font(pro_font_size))
+
+// ===================== 27) لوحة السرد Narrative (مع قرار الآن) =====================
+show_narrative = input.bool(true, "عرض لوحة السرد (Narrative)", group=G_UI)
+int narr_cols = 2
+int narr_rows = 12
+
+if show_narrative and na(narr_table)
+    narr_table := table.new(narr_pos, narr_cols, narr_rows, bgcolor=color.new(PANEL_BG, 0), border_width=1, border_color=PANEL_BORDER)
+
+if show_narrative and barstate.islast
+    int nr = 0
+    table.cell(narr_table, 0, nr, txt("السرد","Narrative"), bgcolor=INFO, text_color=color.white, text_size=to_font(narr_font_size))
+    table.cell(narr_table, 1, nr, syminfo.ticker + " · " + timeframe.period, bgcolor=INFO, text_color=color.white, text_size=to_font(narr_font_size))
+    nr += 1
+
+    // قرار الآن
+    float brk_entry = not na(nearest_resistance) ? nearest_resistance * 1.002 : na
+    float dip_low   = not na(ema_med) ? ema_med * 0.995 : na
+    float dip_high  = not na(ema_med) ? ema_med * 1.010 : na
+    string decision = ""
+    if confirmed_buy_final
+        decision := txt("القرار: شراء مؤكد الآن. ","Decision: Confirmed BUY now. ")
+        decision += txt("دخول ~","Entry ~") + str.tostring(c, "#.##") + " | SL " + (na(sl_dynamic)?"-":str.tostring(sl_dynamic, "#.##"))
+        decision += " | T1 " + (na(calc_target_1)?"-":str.tostring(calc_target_1, "#.##")) + " | T2 " + (na(calc_target_2)?"-":str.tostring(calc_target_2, "#.##"))
+    else
+        if strong_buy_now and (not na(rr_ratio) ? rr_ratio >= 1.3 : true)
+            decision := txt("القرار: ترقّب دخول على اختراق ","Decision: Watch breakout > ") + (na(brk_entry)?"-":str.tostring(brk_entry, "#.##"))
+            decision += txt(" أو ارتداد قرب "," or dip near ") + (na(dip_low)?"-":(str.tostring(dip_low, "#.##")+"-"+str.tostring(dip_high,"#.##")))
+            decision += " | SL " + (na(optimized_stop)?"-":str.tostring(optimized_stop, "#.##"))
+        else
+            decision := txt("القرار: انتظار تأكيد (RR/MTF/حجم).","Decision: Wait for confirmation (RR/MTF/Volume).")
+    table.cell(narr_table, 0, nr, txt("القرار الآن","Decision Now"), text_color=TEXT_SUB, text_size=to_font(narr_font_size))
+    table.cell(narr_table, 1, nr, decision, text_color=TEXT_MAIN, text_size=to_font(narr_font_size))
+    nr += 1
+
+    // الوضع الحالي
+    string line_now = ""
+    line_now += txt("• الآن: ","• Now: ")
+    line_now += (ema_aligned_bull ? txt("اتجاه تعافٍ (السعر فوق EMA50/200). ","Recovery trend (price > EMA50/200). ")
+                                  : ema_aligned_bear ? txt("اتجاه هابط. ","Downtrend. ")
+                                                     : txt("اتجاه جانبي. ","Sideways. "))
+    line_now += (above_vwap ? txt("فوق VWAP. ","Above VWAP. ") : txt("تحت VWAP. ","Below VWAP. "))
+    line_now += "RSI " + str.tostring(rsi_val, "#") + " | ADX " + str.tostring(adx_val, "#") + "."
+    table.cell(narr_table, 0, nr, txt("الوضع الحالي","Current"), text_color=TEXT_SUB, text_size=to_font(narr_font_size))
+    table.cell(narr_table, 1, nr, line_now, text_color=TEXT_MAIN, text_size=to_font(narr_font_size))
+    nr += 1
+
+    // ماذا أفعل؟
+    string line_act = ""
+    line_act += txt("• لو معك: ","• If holding: ")
+    line_act += txt("احتفاظ طالما فوق ","Hold while > ") + (na(sl_dynamic) ? "-" : str.tostring(sl_dynamic, "#.##")) + txt(" مع وقف متحرك ATR."," with ATR trailing.") + "\n"
+    line_act += txt("• لو خارج: ","• If flat: ")
+    line_act += txt("شراء اختراق > ","Buy breakout > ") + (na(brk_entry)?"-":str.tostring(brk_entry, "#.##"))
+    line_act += txt(" أو ارتداد قرب "," or dip near ") + (na(dip_low)?"-":(str.tostring(dip_low, "#.##") + " - " + str.tostring(dip_high, "#.##")))
+    line_act += txt(" | SL تحت "," | SL below ") + (na(optimized_stop)?"-":str.tostring(optimized_stop, "#.##"))
+    table.cell(narr_table, 0, nr, txt("ماذا أفعل؟","What to do?"), text_color=TEXT_SUB, text_size=to_font(narr_font_size))
+    table.cell(narr_table, 1, nr, line_act, text_color=TEXT_MAIN, text_size=to_font(narr_font_size))
+    nr += 1
+
+    // المخاطر
+    string line_risk = ""
+    if not na(nearest_resistance) and ((nearest_resistance - c) / c) * 100.0 < 1.0
+        line_risk += txt("• مقاومة قريبة: احتمال تذبذب.\n","• Nearby resistance: chop risk.\n")
+    if not liquid_ok
+        line_risk += txt("• سيولة ضعيفة: احتمال انزلاق.\n","• Low liquidity: slippage risk.\n")
+    if gap_up
+        line_risk += txt("• فجوة صاعدة: قابلية ملء الفجوة.\n","• Gap up: potential fill.\n")
+    if gap_down
+        line_risk += txt("• فجوة هابطة.\n","• Gap down.\n")
+    if str.length(line_risk) == 0
+        line_risk := txt("• لا مخاطر لافتة الآن.","• No major risks now.")
+    table.cell(narr_table, 0, nr, txt("المخاطر","Risks"), text_color=TEXT_SUB, text_size=to_font(narr_font_size))
+    table.cell(narr_table, 1, nr, line_risk, text_color=TEXT_MAIN, text_size=to_font(narr_font_size))
+    nr += 1
+
+    // الأسباب الإيجابية
+    string bull_reasons = ""
+    if (ema_aligned_bull and price_above_ema)
+        bull_reasons += "• " + txt("اتجاه صاعد والسعر فوق EMAs","Bull trend price > EMAs") + "\n"
+    if (rsi_bull_zone and adx_val >= 20)
+        bull_reasons += "• " + txt("زخم إيجابي (RSI/ADX)","Positive momentum (RSI/ADX)") + "\n"
+    if vol_high
+        bull_reasons += "• " + txt("حجم فوق المتوسط","Volume above average") + "\n"
+    if use_mtf and mtf_all_bullish
+        bull_reasons += "• " + txt("MTF كلها صاعدة","All MTF bullish") + "\n"
+    if resistance_broken
+        bull_reasons += "• " + txt("اختراق مقاومة","Resistance breakout") + "\n"
+    if double_bottom
+        bull_reasons += "• " + txt("دبل بوتوم","Double bottom") + "\n"
+    if str.length(bull_reasons) == 0
+        bull_reasons := "-"
+    table.cell(narr_table, 0, nr, txt("أسباب صعود","Bull reasons"), text_color=TEXT_SUB, text_size=to_font(narr_font_size))
+    table.cell(narr_table, 1, nr, bull_reasons, text_color=TEXT_MAIN, text_size=to_font(narr_font_size))
+    nr += 1
+
+    // عوامل سلبية
+    string bear_reasons = ""
+    if (ema_aligned_bear and price_below_ema)
+        bear_reasons += "• " + txt("اتجاه هابط والسعر تحت EMAs","Bear trend price < EMAs") + "\n"
+    if (rsi_bear_zone and adx_val >= 20)
+        bear_reasons += "• " + txt("زخم هابط","Bearish momentum") + "\n"
+    if (not liquid_ok)
+        bear_reasons += "• " + txt("سيولة ضعيفة/نطاق كبير","Low liquidity/large range") + "\n"
+    if use_mtf and mtf_all_bearish
+        bear_reasons += "• " + txt("MTF كلها هابطة","All MTF bearish") + "\n"
+    if double_top
+        bear_reasons += "• " + txt("دبل توب","Double top") + "\n"
+    if str.length(bear_reasons) == 0
+        bear_reasons := "-"
+    table.cell(narr_table, 0, nr, txt("عوامل سلبية","Bear factors"), text_color=TEXT_SUB, text_size=to_font(narr_font_size))
+    table.cell(narr_table, 1, nr, bear_reasons, text_color=TEXT_MAIN, text_size=to_font(narr_font_size))
+
+// ===================== 28) Report Center + تنبيهات =====================
+var string G_RC = "التقارير والسرد (Report Center)"
+rc_enable        = input.bool(true,  "تفعيل مركز التقارير", group=G_RC)
+rc_show_t3       = input.bool(false, "عرض T3 بالخطة", group=G_RC)
+rc_show_tags     = input.bool(false, "عرض الوسوم", group=G_RC)
+rc_add_ticker_tag= input.bool(true,  "إلحاق #الرمز", group=G_RC)
+rc_hashtags      = input.string("#البورصة_المصرية #EGX", "قالب الوسوم", group=G_RC)
+rc_rr_min        = input.float(1.5,  "أدنى R:R للتنبيه", step=0.1, minval=0.5, group=G_RC)
+rc_sl_max_pct    = input.float(4.0,  "أقصى SL %", step=0.1, minval=0.5, group=G_RC)
+rc_cooldown      = input.int(20,     "تبريد التنبيه (شموع)", minval=1, maxval=500, group=G_RC)
+
+show_report_center = input.bool(true, "عرض مركز التقارير", group=G_UI)
+
+int rc_cols = 2
+int rc_rows = 8
+
+if show_report_center and rc_enable and na(rc_table)
+    rc_table := table.new(rc_pos, rc_cols, rc_rows, bgcolor=color.new(PANEL_BG, 0), border_width=1, border_color=PANEL_BORDER)
+
+if show_report_center and rc_enable and barstate.islast
+    string date_str = str.tostring(year(time)) + "-" + str.tostring(month(time)) + "-" + str.tostring(dayofmonth(time))
+    string header_compact = signal_text + " | " + txt("تقييم ","Score ") + str.tostring(final_score, "#") + " · " + syminfo.ticker + " · " + timeframe.period + " · " + date_str
+
+    string plan_line = ""
+    if use_targets
+        plan_line := (msg_lang=="AR" ? "دخول " : "Entry ") + str.tostring(c, "#.##") +
+                     " | " + (msg_lang=="AR" ? "وقف " : "SL ") + (na(sl_dynamic)?"-":str.tostring(sl_dynamic, "#.##")) +
+                     " | T1 " + str.tostring(calc_target_1, "#.##") +
+                     " | T2 " + str.tostring(calc_target_2, "#.##")
+        if rc_show_t3 and not na(calc_target_3)
+            plan_line += " | T3 " + str.tostring(calc_target_3, "#.##")
+        if not na(rr_ratio)
+            plan_line += " | " + (msg_lang=="AR" ? "م/ع 1:" : "R:R 1:") + str.tostring(rr_ratio, "#.#")
+    else
+        plan_line := txt("الأهداف/الوقف غير مفعلة","Targets/SL disabled")
+
+    string sup_txt2 = not na(nearest_support) ? str.tostring(nearest_support, "#.##") : "-"
+    string res_txt2 = not na(nearest_resistance) ? str.tostring(nearest_resistance, "#.##") : "-"
+    string mtf_txt2 = (not use_mtf) ? txt("MTF معطل","MTF Off") : mtf_all_bullish ? txt("MTF صاعد","MTF Bull") : mtf_all_bearish ? txt("MTF هابط","MTF Bear") : txt("MTF مختلط","MTF Mixed")
+    string ai_txt2  = txt("ثقة ","AI ") + str.tostring(ai_confidence, "#") + "%"
+    string sh_txt2  = txt("الشريعة: ","Sharia: ") + (is_sharia_compliant ? txt("متوافق","OK") : txt("غير متوافق","Not OK"))
+    string info_line = (msg_lang=="AR" ? "دعم " : "Support ") + sup_txt2 + " | " + (msg_lang=="AR" ? "مقاومة " : "Resistance ") + res_txt2 + " | " + mtf_txt2 + " | " + ai_txt2 + " | " + sh_txt2
+
+    string reasons_line = ""
+    int reasons_count = 0
+    int rc_max_reasons = 6
+
+    if (ema_aligned_bull and price_above_ema) and reasons_count < rc_max_reasons
+        reasons_line += (reasons_count > 0 ? "؛ " : "") + (msg_lang=="AR" ? "اتجاه صاعد" : "Trend up")
+        reasons_count += 1
+    if (adx_val >= 20 and rsi_val > 50) and reasons_count < rc_max_reasons
+        reasons_line += (reasons_count > 0 ? "؛ " : "") + (msg_lang=="AR" ? "زخم قوي" : "Strong momentum")
+        reasons_count += 1
+    if vol_high and reasons_count < rc_max_reasons
+        reasons_line += (reasons_count > 0 ? "؛ " : "") + (msg_lang=="AR" ? "حجم مرتفع" : "High volume")
+        reasons_count += 1
+    if bullish_engulfing and reasons_count < rc_max_reasons
+        reasons_line += (reasons_count > 0 ? "؛ " : "") + (msg_lang=="AR" ? "ابتلاع صاعد" : "Bullish engulfing")
+        reasons_count += 1
+    if resistance_broken and reasons_count < rc_max_reasons
+        reasons_line += (reasons_count > 0 ? "؛ " : "") + (msg_lang=="AR" ? "اختراق مقاومة" : "Resistance breakout")
+        reasons_count += 1
+    if in_golden_zone and reasons_count < rc_max_reasons
+        reasons_line += (reasons_count > 0 ? "؛ " : "") + (msg_lang=="AR" ? "منطقة ذهبية" : "Golden zone")
+        reasons_count += 1
+
+    table.cell(rc_table, 0, 0, "", text_color=TEXT_SUB, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 1, 0, header_compact, bgcolor=INFO, text_color=color.white, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 0, 1, txt("إشارة","Sig"), text_color=TEXT_SUB, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 1, 1, signal_text + " | " + txt("تقييم ","Score ") + str.tostring(final_score, "#"), bgcolor=color.new(signal_color, 0), text_color=color.white, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 0, 2, txt("الخطة","Plan"), text_color=TEXT_SUB, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 1, 2, plan_line, text_color=TEXT_MAIN, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 0, 3, txt("معلومة","Info"), text_color=TEXT_SUB, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 1, 3, info_line, text_color=TEXT_MAIN, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 0, 4, txt("الأسباب","Reasons"), text_color=TEXT_SUB, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 1, 4, str.length(reasons_line) > 0 ? reasons_line : "-", text_color=TEXT_MAIN, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 0, 5, txt("وسوم","Tags"), text_color=TEXT_SUB, text_size=to_font(rc_font_size))
+    table.cell(rc_table, 1, 5, rc_show_tags ? (rc_hashtags + (rc_add_ticker_tag ? (" #" + syminfo.ticker) : "")) : "-", text_color=TEXT_MAIN, text_size=to_font(rc_font_size))
+
+// جاهزية التنبيه
+float rc_risk   = use_targets and not na(sl_dynamic) ? (c - sl_dynamic) : na
+float rc_sl_pct = (use_targets and c > 0 and not na(rc_risk)) ? (rc_risk / c) * 100.0 : na
+bool rc_valid_rr   = use_targets and not na(rr_ratio) and rr_ratio >= rc_rr_min
+bool rc_valid_sl   = use_targets and not na(rc_sl_pct) and math.abs(rc_sl_pct) <= rc_sl_max_pct
+bool rc_core_event = confirmed_buy_final or trig_trend_cont or trig_pivot_break or resistance_broken
+bool rc_ok_to_send = rc_enable and rc_core_event and rc_valid_rr and rc_valid_sl
+var int rc_last_fire_bar = na
+bool rc_ready_now = rc_ok_to_send and (na(rc_last_fire_bar) or (bar_index - rc_last_fire_bar >= rc_cooldown))
+if rc_ready_now
+    rc_last_fire_bar := bar_index
+
+// تنبيهات
+alertcondition(confirmed_buy_final,  "EGXv9: شراء مؤكد",  "EGXv9: Confirmed BUY")
+alertcondition(confirmed_sell,       "EGXv9: خروج/بيع",  "EGXv9: Confirmed SELL")
+alertcondition(rc_ready_now,         "EGXv9: تقرير جاهز", "EGXv9: Report Center Ready")
+
+if barstate.isconfirmed and rc_ready_now
+    alert("EGXv9 | " + signal_text + " | " + syminfo.ticker + " @" + str.tostring(c, "#.##") +
+          " | Score " + str.tostring(final_score, "#") +
+          (use_targets ? (" | SL " + (na(sl_dynamic)?"-":str.tostring(sl_dynamic, "#.##")) + " | T1 " + str.tostring(calc_target_1, "#.##") + " | T2 " + str.tostring(calc_target_2, "#.##")) : ""),
+          alert.freq_once_per_bar_close)
+
+// ===================== 29) لافتات Labels مع تبريد =====================
+var string G_LBL = "اللافتات"
+lbl_cooldown_bars = input.int(15, "تبريد اللافتة (شموع)", minval=1, maxval=500, group=G_LBL)
+show_labels = input.bool(true, "عرض لافتات الإشارات", group=G_LBL)
+
+var label[] active_labels = array.new_label()
+cleanup_labels() =>
+    if array.size(active_labels) > 60
+        label old_label = array.shift(active_labels)
+        label.delete(old_label)
+
+var int last_buy_label_bar   = na
+var int last_sell_label_bar  = na
+var int last_light_label_bar = na
+
+bool can_drop_buy_label   = na(last_buy_label_bar)   or (bar_index - last_buy_label_bar   >= lbl_cooldown_bars)
+bool can_drop_sell_label  = na(last_sell_label_bar)  or (bar_index - last_sell_label_bar  >= lbl_cooldown_bars)
+bool can_drop_light_label = na(last_light_label_bar) or (bar_index - last_light_label_bar >= lbl_cooldown_bars)
+
+// شراء خفيف عند تريجرات قوية بدون تأكيد كامل
+bool light_buy = (final_score >= 40) and filter_session and filter_sharia_buy and any_buy_trigger_ext and not confirmed_buy_final
+
+if show_labels and confirmed_buy_final and can_drop_buy_label
+    string txt_buy = signal_text + " " + str.tostring(final_score, "#")
+    label lb = label.new(bar_index, l - atr_val * 0.5, txt_buy, style=label.style_label_up, color=signal_color, textcolor=color.white, size=size.small)
+    array.push(active_labels, lb)
+    cleanup_labels()
+    last_buy_label_bar := bar_index
+
+if show_labels and confirmed_sell and can_drop_sell_label
+    string txt_sell = signal_text + " " + str.tostring(final_score, "#")
+    label ls = label.new(bar_index, h + atr_val * 0.5, txt_sell, style=label.style_label_down, color=signal_color, textcolor=color.white, size=size.small)
+    array.push(active_labels, ls)
+    cleanup_labels()
+    last_sell_label_bar := bar_index
+
+if show_labels and light_buy and can_drop_light_label
+    string txt_light = txt("إشارة شراء (استمرارية)","Light BUY (continuation)") + " | " + str.tostring(final_score, "#")
+    label ll = label.new(bar_index, l - atr_val * 0.3, txt_light, style=label.style_label_up, color=color.new(GOOD, 20), textcolor=color.white, size=size.tiny)
+    array.push(active_labels, ll)
+    cleanup_labels()
+    last_light_label_bar := bar_index
